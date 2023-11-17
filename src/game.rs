@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 
-use serde::{Deserialize, Serialize};
+// use serde::{Deserialize, Serialize};
 
-use crate::gif::{gif_load, Gif, GifPlugin};
+use crate::gif::{Gif, GifPlugin, Trigger};
 use crate::{despawn_screen, MainState};
 
 pub struct GamePlugin;
@@ -11,14 +11,10 @@ impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_state::<GameState>()
             .add_systems(OnEnter(MainState::Game), setup_game)
-            .add_systems(Update, gif_load::<LoadScreen, LoadEvent>)
-            .add_systems(OnExit(MainState::Game), despawn_screen::<OnGameScreen>);
-        // .add_plugins(GifPlugin::<EventTrigger, LoadEvent>);
+            .add_systems(OnExit(MainState::Game), despawn_screen::<OnGameScreen>)
+            .add_plugins(GifPlugin::<LoadScreen, Event>::default());
     }
 }
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Game {}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, States)]
 enum GameState {
@@ -29,20 +25,23 @@ enum GameState {
 #[derive(Component)]
 struct OnGameScreen;
 
-#[derive(Component)]
+#[derive(Component, Default)]
 struct LoadScreen;
 
-#[derive(Event, Default)]
-pub struct LoadEvent;
+#[derive(Event, Resource)]
+struct Event(Timer);
 
-#[derive(Resource)]
-pub struct EventTrigger {
-    timer: Timer,
-}
-impl Default for EventTrigger {
+impl Default for Event {
     fn default() -> Self {
-        EventTrigger {
-            timer: Timer::from_seconds(0.5, TimerMode::Repeating),
+        Event(Timer::from_seconds(0.5, TimerMode::Repeating))
+    }
+}
+
+impl Trigger<Event> for Event {
+    fn event_trigger(time: Res<Time>, mut state: ResMut<Event>, mut gif_event: EventWriter<Event>) {
+        if state.0.tick(time.delta()).finished() {
+            gif_event.send_default();
+            println!("event_trigger");
         }
     }
 }

@@ -1,23 +1,85 @@
-use std::{collections::HashMap, fs::read_dir, marker::PhantomData};
+use std::fmt::Debug;
+use std::{collections::HashMap, fs::read_dir};
 
 use bevy::prelude::*;
 use rand::{thread_rng, Rng};
 
-pub struct GifPlugin<R, E> {
-    _resource: PhantomData<fn() -> R>,
-    _event: PhantomData<fn() -> E>,
+pub trait Trigger<ER: Event + Resource> {
+    fn event_trigger(time: Res<Time>, state: ResMut<ER>, gif_event: EventWriter<ER>);
 }
 
-//
-impl<R, E> Plugin for GifPlugin<R, E>
+pub trait Status {
+    fn exe() -> Self;
+}
+
+enum LoadStatu {
+    Standby,
+}
+
+impl Status for LoadStatu {
+    fn exe() -> Self {
+        LoadStatu::Standby
+    }
+}
+
+/// # Example
+/// ```
+/// #[drive(Component, Default)]
+/// struct Screen;
+///
+/// #[drive(Event, Resource)]
+/// struct Event(Timer)
+///
+/// impl Default for Event {
+///     fn default() -> Self {
+///          Event(Timer::from_seconds(0.5, TimerMode::Repeating))
+///     }
+/// }
+///
+/// impl Trigger<Event> for Event {
+///     fn event_trigger(
+///         time: Res<Time>,
+///         mut state: ResMut<Event>,
+///         mut gif_event: EventWriter<Event>
+///     ) {
+///         if state.0.tick(time.delta()).finished() {
+///             gif_event.send_default();
+///         }
+///     }
+/// }
+///
+/// fn main() {
+///     App::new().add_plugins(GifPlugin::<Screen, Event>::default()).run();
+/// }
+///
+/// fn setup(commands: Commands) {
+///     commands.spawn((
+///         ImageBundle {
+///             image: UiImage::new(gif.get("load", 1)),
+///             ..default()
+///         },
+///         Screen,
+///     ));
+/// }
+/// ```
+pub struct GifPlugin<C, ER>(pub C, pub ER);
+
+impl<C, ER> Plugin for GifPlugin<C, ER>
 where
-    R: Resource + Default,
-    E: Event + Default,
+    C: Component,
+    ER: Event + Resource + Default + Trigger<ER>,
 {
     fn build(&self, app: &mut App) {
-        app.init_resource::<R>()
-            .add_event::<E>()
-            .add_systems(Update, event_trgger::<E>);
+        app.init_resource::<ER>()
+            .add_event::<ER>()
+            .add_systems(Update, ER::event_trigger)
+            .add_systems(Update, gif_load::<C, ER>);
+    }
+}
+
+impl<C: Default, ER: Default> Default for GifPlugin<C, ER> {
+    fn default() -> Self {
+        GifPlugin(C::default(), ER::default())
     }
 }
 
@@ -51,34 +113,8 @@ impl Gif {
     fn _sort() {}
 }
 
-#[derive(Event, Default)]
-pub struct GifEvent;
-
-#[derive(Resource)]
-pub struct EventTriggerState {
-    event_timer: Timer,
-}
-
-impl Default for EventTriggerState {
-    fn default() -> Self {
-        EventTriggerState {
-            event_timer: Timer::from_seconds(0.5, TimerMode::Repeating),
-        }
-    }
-}
-
-pub fn event_trgger<T: Event + Default>(
-    time: Res<Time>,
-    mut state: ResMut<EventTriggerState>,
-    mut gif_event: EventWriter<T>,
-) {
-    if state.event_timer.tick(time.delta()).finished() {
-        gif_event.send_default()
-    }
-}
-
-pub fn gif_load<T: Component, E: Event + Default>(
-    mut image_query: Query<&mut UiImage, With<T>>,
+pub fn gif_load<C: Component, E: Event>(
+    mut image_query: Query<&mut UiImage, With<C>>,
     gif: Res<Gif>,
     mut gif_event: EventReader<E>,
 ) {
