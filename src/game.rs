@@ -1,8 +1,6 @@
 use bevy::prelude::*;
 
-// use serde::{Deserialize, Serialize};
-
-use crate::gif::{Gif, GifPlugin, Trigger};
+use crate::gif::{Gif, GifResource};
 use crate::{despawn_screen, MainState};
 
 pub struct GamePlugin;
@@ -11,8 +9,7 @@ impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_state::<GameState>()
             .add_systems(OnEnter(MainState::Game), setup_game)
-            .add_systems(OnExit(MainState::Game), despawn_screen::<OnGameScreen>)
-            .add_plugins(GifPlugin::<LoadScreen, Event>::default());
+            .add_systems(OnExit(MainState::Game), despawn_screen::<OnGameScreen>);
     }
 }
 
@@ -25,24 +22,12 @@ enum GameState {
 #[derive(Component)]
 struct OnGameScreen;
 
-#[derive(Component, Default)]
-struct LoadScreen;
+#[derive(Component, Event, Resource)]
+struct Screen(GifResource);
 
-#[derive(Event, Resource)]
-struct Event(Timer);
-
-impl Default for Event {
+impl Default for Screen {
     fn default() -> Self {
-        Event(Timer::from_seconds(0.5, TimerMode::Repeating))
-    }
-}
-
-impl Trigger<Event> for Event {
-    fn event_trigger(time: Res<Time>, mut state: ResMut<Event>, mut gif_event: EventWriter<Event>) {
-        if state.0.tick(time.delta()).finished() {
-            gif_event.send_default();
-            println!("event_trigger");
-        }
+        Screen(GifResource::new(0.2, "load".to_string(), 1))
     }
 }
 
@@ -63,12 +48,9 @@ fn setup_game(mut commands: Commands, gif: Res<Gif>) {
             OnGameScreen,
         ))
         .with_children(|parent| {
-            parent.spawn((
-                ImageBundle {
-                    image: UiImage::new(gif.get("load", 1)),
-                    ..default()
-                },
-                LoadScreen,
-            ));
+            parent.spawn((ImageBundle {
+                image: UiImage::new(gif.get("load".to_string(), 1)),
+                ..default()
+            },));
         });
 }
