@@ -4,6 +4,8 @@ use std::{collections::HashMap, fs::read_dir};
 use bevy::prelude::*;
 use rand::{thread_rng, Rng};
 
+// まだ途中
+
 pub struct GifPlugin<T>(T);
 
 impl<T> Plugin for GifPlugin<T>
